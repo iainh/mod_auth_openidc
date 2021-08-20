@@ -3082,23 +3082,29 @@ static int oidc_handle_logout(request_rec *r, oidc_cfg *c,
 
 		char *logout_request = apr_pstrdup(r->pool,
 				provider->end_session_endpoint);
-		if (id_token_hint != NULL) {
+
+		/* only set the `id_token_hint` and `post_logout_redirect_uri` query parameters if an 
+		   id_token exists in the session and the user has not explicitly disabled sending the 
+		   `id_token_hint` parameter. The RP-Initiate Logout specification requires that 
+		   `id_token_hint` be set when `post_logout_redirect_uri` is present so we avoid setting it  
+		   when not setting `id_token_hint`. */  
+		if ((c->send_idtoken_hint == TRUE) && (id_token_hint != NULL)) {
 			logout_request = apr_psprintf(r->pool, "%s%sid_token_hint=%s",
 					logout_request, strchr(logout_request ? logout_request : "",
 							OIDC_CHAR_QUERY) != NULL ?
 									OIDC_STR_AMP :
 									OIDC_STR_QUERY,
 									oidc_util_escape_string(r, id_token_hint));
-		}
 
-		if (url != NULL) {
-			logout_request = apr_psprintf(r->pool,
-					"%s%spost_logout_redirect_uri=%s", logout_request,
-					strchr(logout_request ? logout_request : "",
-							OIDC_CHAR_QUERY) != NULL ?
-									OIDC_STR_AMP :
-									OIDC_STR_QUERY,
-									oidc_util_escape_string(r, url));
+			if (url != NULL) {
+				logout_request = apr_psprintf(r->pool,
+						"%s%spost_logout_redirect_uri=%s", logout_request,
+						strchr(logout_request ? logout_request : "",
+								OIDC_CHAR_QUERY) != NULL ?
+										OIDC_STR_AMP :
+										OIDC_STR_QUERY,
+										oidc_util_escape_string(r, url));
+			}
 		}
 		//char *state = NULL;
 		//oidc_proto_generate_nonce(r, &state, 8);

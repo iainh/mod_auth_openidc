@@ -168,6 +168,8 @@
 #define OIDC_DEFAULT_STATE_INPUT_HEADERS (OIDC_STATE_INPUT_HEADERS_USER_AGENT | OIDC_STATE_INPUT_HEADERS_X_FORWARDED_FOR)
 /* default prefix of the state cookie that binds the state in the authorization request/response to the browser */
 #define OIDC_DEFAULT_STATE_COOKIE_PREFIX "mod_auth_openidc_state_"
+/* default for sending id_token_hint on RP-initiated logout */
+#define OIDC_DEFAULT_SEND_ID_TOKEN_HINT 1
 
 #define OIDCProviderMetadataURL                "OIDCProviderMetadataURL"
 #define OIDCProviderIssuer                     "OIDCProviderIssuer"
@@ -276,6 +278,7 @@
 #define OIDCRedirectURLsAllowed                "OIDCRedirectURLsAllowed"
 #define OIDCStateCookiePrefix                  "OIDCStateCookiePrefix"
 #define OIDCCABundlePath                       "OIDCCABundlePath"
+#define OIDCSendIdTokenHint                    "OIDCSendIdTokenHint"
 
 extern module AP_MODULE_DECLARE_DATA auth_openidc_module;
 
@@ -1401,6 +1404,8 @@ void* oidc_create_server_config(apr_pool_t *pool, server_rec *svr) {
 
 	c->ca_bundle_path = NULL;
 
+	c->send_idtoken_hint = OIDC_DEFAULT_SEND_ID_TOKEN_HINT;
+
 	return c;
 }
 
@@ -1892,6 +1897,10 @@ void* oidc_merge_server_config(apr_pool_t *pool, void *BASE, void *ADD) {
 	c->ca_bundle_path =
 			add->ca_bundle_path != NULL ?
 					add->ca_bundle_path : base->ca_bundle_path;
+
+	c->send_idtoken_hint =
+			add->send_idtoken_hint != OIDC_DEFAULT_SEND_ID_TOKEN_HINT ?
+					add->send_idtoken_hint : base->send_idtoken_hint;
 
 	return c;
 }
@@ -3376,6 +3385,12 @@ const command_rec oidc_config_cmds[] = {
 				(void *) APR_OFFSETOF(oidc_cfg, ca_bundle_path),
 				RSRC_CONF,
 				"Sets the path to the CA bundle to be used by cURL."),
+
+		AP_INIT_FLAG(OIDCSendIdTokenHint,
+				ap_set_flag_slot,
+				(void*)APR_OFFSETOF(oidc_cfg, send_idtoken_hint),
+				RSRC_CONF|ACCESS_CONF|OR_AUTHCFG,
+				"Send the id_token_hint parameter on RP-initiated logout (On or Off)"),
 
 		{ NULL }
 };

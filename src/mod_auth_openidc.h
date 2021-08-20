@@ -428,6 +428,9 @@ typedef struct oidc_cfg {
 	apr_hash_t *redirect_urls_allowed;
 
 	char *ca_bundle_path;
+
+	/* send id_token_hint query parameter when performing an RP-initiated logout */
+	apr_byte_t send_idtoken_hint;
 } oidc_cfg;
 
 int oidc_check_user_id(request_rec *r);
