@@ -251,7 +251,7 @@
 #define OIDCRedisCacheDatabase                 "OIDCRedisCacheDatabase"
 #define OIDCRedisCacheConnectTimeout           "OIDCRedisCacheConnectTimeout"
 #define OIDCRedisCacheTimeout                  "OIDCRedisCacheTimeout"
-#define OIDCRedisCacheMaxRetry               "OIDCRedisCacheMaxRetry"
+#define OIDCRedisCacheMaxRetry                 "OIDCRedisCacheMaxRetry"
 #define OIDCHTMLErrorTemplate                  "OIDCHTMLErrorTemplate"
 #define OIDCDiscoverURL                        "OIDCDiscoverURL"
 #define OIDCPassCookies                        "OIDCPassCookies"
@@ -275,7 +275,7 @@
 #define OIDCRefreshAccessTokenBeforeExpiry     "OIDCRefreshAccessTokenBeforeExpiry"
 #define OIDCStateInputHeaders                  "OIDCStateInputHeaders"
 #define OIDCRedirectURLsAllowed                "OIDCRedirectURLsAllowed"
-#define OIDCStateCookiePrefix                  "OIDCStateCookiePrefix"
+#define OIDCStateCookiePrefix                   "OIDCStateCookiePrefix"
 #define OIDCCABundlePath                       "OIDCCABundlePath"
 
 extern module AP_MODULE_DECLARE_DATA auth_openidc_module;
