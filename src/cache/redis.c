@@ -293,9 +293,10 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 			break;
 
 		/* something went wrong, log it */
+		int total_attempts = 1 + context->max_retry;		
 		oidc_error(r,
 				"Redis command (attempt=%d/%d to %s:%d) failed, disconnecting: '%s' [%s]",
-				i, context->max_retry, context->host_str, context->port, context->ctx->errstr,
+				i, total_attempts, context->host_str, context->port, context->ctx->errstr,
 				reply ? reply->str : "<n/a>");
 
 		/* free the reply (if there is one allocated) */
