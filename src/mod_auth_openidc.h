@@ -393,6 +393,7 @@ typedef struct oidc_cfg {
 	int cache_redis_database;
 	int cache_redis_connect_timeout;
 	int cache_redis_timeout;
+	int cache_redis_max_retry;
 #endif
 	int cache_encrypt;
 

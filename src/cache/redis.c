@@ -66,11 +66,13 @@ typedef struct oidc_cache_cfg_redis_t {
 	int database;
 	struct timeval connect_timeout;
 	struct timeval timeout;
+	int max_retry;
 	redisContext *ctx;
 } oidc_cache_cfg_redis_t;
 
 #define REDIS_CONNECT_TIMEOUT_DEFAULT 5
 #define REDIS_TIMEOUT_DEFAULT 5
+#define REDIS_MAX_RETRY_DEFAULT 2
 
 /* create the cache context */
 static void *oidc_cache_redis_cfg_create(apr_pool_t *pool) {
@@ -84,6 +86,7 @@ static void *oidc_cache_redis_cfg_create(apr_pool_t *pool) {
 	context->connect_timeout.tv_usec = 0;
 	context->timeout.tv_sec = REDIS_TIMEOUT_DEFAULT;
 	context->timeout.tv_usec = 0;
+	context->max_retry = REDIS_MAX_RETRY_DEFAULT;
 	context->ctx = NULL;
 	return context;
 }
@@ -142,6 +145,9 @@ static int oidc_cache_redis_post_config(server_rec *s) {
 
 	if (cfg->cache_redis_timeout != -1)
 		context->timeout.tv_sec = cfg->cache_redis_timeout;
+
+	if (cfg->cache_redis_max_retry > -1)
+		context->max_retry = cfg->cache_redis_max_retry;
 
 	if (oidc_cache_mutex_post_config(s, context->mutex, "redis") == FALSE)
 		return HTTP_INTERNAL_SERVER_ERROR;
@@ -259,8 +265,6 @@ static apr_status_t oidc_cache_redis_connect(request_rec *r,
 	return (context->ctx != NULL) ? APR_SUCCESS : APR_EGENERAL;
 }
 
-#define OIDC_REDIS_MAX_TRIES 2
-
 /*
  * execute Redis command and deal with return value
  */
@@ -271,8 +275,8 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 	int i = 0;
 	va_list ap;
 
-	/* try to execute a command at max 2 times while reconnecting */
-	for (i = 0; i < OIDC_REDIS_MAX_TRIES; i++) {
+	/* try to execute a command, retrying at most 'max_retry' times while reconnecting */
+	for (i = 0; i <= context->max_retry; i++) {
 
 		/* connect */
 		if (oidc_cache_redis_connect(r, context) != APR_SUCCESS)
@@ -290,8 +294,8 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 
 		/* something went wrong, log it */
 		oidc_error(r,
-				"Redis command (attempt=%d to %s:%d) failed, disconnecting: '%s' [%s]",
-				i, context->host_str, context->port, context->ctx->errstr,
+				"Redis command (attempt=%d/%d to %s:%d) failed, disconnecting: '%s' [%s]",
+				i, context->max_retry, context->host_str, context->port, context->ctx->errstr,
 				reply ? reply->str : "<n/a>");
 
 		/* free the reply (if there is one allocated) */
