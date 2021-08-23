@@ -277,10 +277,10 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 
 	/* try to execute a command, retrying at most 'max_retry' times while reconnecting */
 	for (i = 0; i <= context->max_retry; i++) {
-
+		
 		/* connect */
 		if (oidc_cache_redis_connect(r, context) != APR_SUCCESS)
-			break;
+			continue;
 
 		va_start(ap, format);
 		/* execute the actual command */
