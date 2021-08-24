@@ -277,7 +277,7 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 
 	/* try to execute a command, retrying at most 'max_retry' times while reconnecting */
 	for (i = 0; i <= context->max_retry; i++) {
-		
+
 		/* connect */
 		if (oidc_cache_redis_connect(r, context) != APR_SUCCESS)
 			continue;
@@ -293,7 +293,7 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 			break;
 
 		/* something went wrong, log it */
-		int total_attempts = 1 + context->max_retry;		
+		int total_attempts = 1 + context->max_retry;
 		oidc_error(r,
 				"Redis command (attempt=%d/%d to %s:%d) failed, disconnecting: '%s' [%s]",
 				i, total_attempts, context->host_str, context->port, context->ctx->errstr,
