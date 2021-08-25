@@ -53,6 +53,7 @@
 #include "../mod_auth_openidc.h"
 
 #include "hiredis/hiredis.h"
+#include "hiredispool.h"
 
 // TODO: proper Redis error reporting (server unreachable etc.)
 
@@ -66,7 +67,8 @@ typedef struct oidc_cache_cfg_redis_t {
 	int database;
 	struct timeval connect_timeout;
 	struct timeval timeout;
-	redisContext *ctx;
+	// redisContext *ctx;
+	REDIS_INSTANCE *pool;
 } oidc_cache_cfg_redis_t;
 
 #define REDIS_CONNECT_TIMEOUT_DEFAULT 5
@@ -84,7 +86,7 @@ static void *oidc_cache_redis_cfg_create(apr_pool_t *pool) {
 	context->connect_timeout.tv_usec = 0;
 	context->timeout.tv_sec = REDIS_TIMEOUT_DEFAULT;
 	context->timeout.tv_usec = 0;
-	context->ctx = NULL;
+	context->pool = NULL;
 	return context;
 }
 
@@ -143,6 +145,29 @@ static int oidc_cache_redis_post_config(server_rec *s) {
 	if (cfg->cache_redis_timeout != -1)
 		context->timeout.tv_sec = cfg->cache_redis_timeout;
 
+	REDIS_ENDPOINT endpoints[1] = {
+        { "127.0.0.1", 6379 },
+        // { context->host_str, context->port },
+        //{ "127.0.0.1", 6381 },
+    };
+
+
+    REDIS_CONFIG conf = {
+        (REDIS_ENDPOINT*)&endpoints,	// endpoints
+        1,								// num_endpoints
+		//10000,							// connection_timeout
+        cfg->cache_redis_connect_timeout, 	// connection_timeout
+		5000,							// net_readwrite_timeout
+        20,								// number of redis sockets
+        1,								// connection failure retry delay
+    };
+
+ 	redis_pool_create(&conf, &context->pool);
+	if(context->pool == NULL) {
+		oidc_serror(s,"Unable to initialize Redis Pool, this isn't going to work out...");
+		return HTTP_INTERNAL_SERVER_ERROR;
+	}
+
 	if (oidc_cache_mutex_post_config(s, context->mutex, "redis") == FALSE)
 		return HTTP_INTERNAL_SERVER_ERROR;
 
@@ -173,9 +198,10 @@ static char *oidc_cache_redis_get_key(apr_pool_t *pool, const char *section,
  * free resources allocated for the per-process Redis connection context
  */
 static apr_status_t oidc_cache_redis_free(oidc_cache_cfg_redis_t *context) {
-	if ((context != NULL) && (context->ctx != NULL)) {
-		redisFree(context->ctx);
-		context->ctx = NULL;
+	if ((context != NULL) && (context->pool != NULL)) {
+	//	redisFree(context->pool);
+		redis_pool_destroy(context->pool);
+		context->pool = NULL;
 	}
 	return APR_SUCCESS;
 }
@@ -190,74 +216,96 @@ static void oidc_cache_redis_reply_free(redisReply **reply) {
 	}
 }
 
-/*
- * connect to Redis server
- */
-static apr_status_t oidc_cache_redis_connect(request_rec *r,
-		oidc_cache_cfg_redis_t *context) {
+// /*
+//  * connect to Redis server
+//  */
+// static apr_status_t oidc_cache_redis_connect(request_rec *r,
+// 		oidc_cache_cfg_redis_t *context) {
 
-	redisReply *reply = NULL;
+// 	redisReply *reply = NULL;
 
-	if (context->ctx == NULL) {
+// 	if (context->pool == NULL) {
 
-		/* no connection, connect to the configured Redis server */
-		oidc_debug(r, "calling redisConnectWithTimeout");
-		context->ctx = redisConnectWithTimeout(context->host_str, context->port, context->connect_timeout);
+// 		// /* no connection, connect to the configured Redis server */
+// 		// oidc_debug(r, "calling redisConnectWithTimeout");
+// 		// //context->ctx = redisConnectWithTimeout(context->host_str, context->port, context->connect_timeout);
 
-		/* check for errors */
-		if ((context->ctx == NULL) || (context->ctx->err != 0)) {
-			oidc_error(r, "failed to connect to Redis server (%s:%d): '%s'",
-					context->host_str, context->port,
-					context->ctx != NULL ? context->ctx->errstr : "");
-			oidc_cache_redis_free(context);
-		} else {
-			/* log the connection */
-			oidc_debug(r, "successfully connected to Redis server (%s:%d)",
-					context->host_str, context->port);
+// 		// REDIS_ENDPOINT endpoints[1] = {
+//         // 	{ "127.0.0.1", 6379 },
+//         // 	//{ "127.0.0.1", 6380 },
+//         // 	//{ "127.0.0.1", 6381 },
+//     	// };
 
-			/* see if we need to authenticate to the Redis server */
-			if (context->passwd != NULL) {
-				reply = redisCommand(context->ctx, "AUTH %s", context->passwd);
-				if ((reply == NULL) || (reply->type == REDIS_REPLY_ERROR))
-					oidc_error(r,
-							"Redis AUTH command (%s:%d) failed: '%s' [%s]",
-							context->host_str, context->port,
-							context->ctx->errstr, reply ? reply->str : "<n/a>");
-				else
-					oidc_debug(r,
-							"successfully authenticated to the Redis server: %s",
-							reply ? reply->str : "<n/a>");
+// 		// REDIS_CONFIG conf = {
+// 		// 	(REDIS_ENDPOINT*)&endpoints,
+// 		// 	1,
+// 		// 	10000,
+// 		// 	5000,
+// 		// 	20,
+// 		// 	1,
+// 		// };
 
-				/* free the auth answer */
-				oidc_cache_redis_reply_free(&reply);
-			}
+// 		// redis_pool_create(&conf, &context->pool);
 
-			/* see if we need to set the database */
-			if (context->database != -1) {
-				reply = redisCommand(context->ctx, "SELECT %d",
-						context->database);
-				if ((reply == NULL) || (reply->type == REDIS_REPLY_ERROR))
-					oidc_error(r,
-							"Redis SELECT command (%s:%d) failed: '%s' [%s]",
-							context->host_str, context->port,
-							context->ctx->errstr, reply ? reply->str : "<n/a>");
-				else
-					oidc_debug(r,
-							"successfully selected database %d on the Redis server: %s",
-							context->database, reply ? reply->str : "<n/a>");
+// 		/* check for errors */
+// 		if ((context->pool == NULL)) {
+// 			oidc_error(r, "failed to connect to Redis server (%s:%d)",
+// 					context->host_str, context->port);
+// 			oidc_cache_redis_free(context);
+// 		} else {
+// 			/* log the connection */
+// 			oidc_debug(r, "successfully connected to Redis server (%s:%d)",
+// 					context->host_str, context->port);
 
-				/* free the database answer */
-				oidc_cache_redis_reply_free(&reply);
-			}
+// 			/* see if we need to authenticate to the Redis server */
+// 			if (context->passwd != NULL) {
+// 				REDIS_SOCKET *sock = redis_get_socket(context->pool);
+// 				reply = redis_command(sock, context->pool, "AUTH %s", context->passwd);
+// 				redis_release_socket(context->pool, sock);
 
-			if (redisSetTimeout(context->ctx, context->timeout) != REDIS_OK)
-				oidc_error(r, "redisSetTimeout failed: %s", context->ctx->errstr);
+// 				if ((reply == NULL) || (reply->type == REDIS_REPLY_ERROR))
+// 					oidc_error(r,
+// 							"Redis AUTH command (%s:%d) failed",
+// 							context->host_str, context->port
+// 							);
+// 				else
+// 					oidc_debug(r,
+// 							"successfully authenticated to the Redis server: %s",
+// 							reply ? reply->str : "<n/a>");
 
-		}
-	}
+// 				/* free the auth answer */
+// 				oidc_cache_redis_reply_free(&reply);
+// 			}
 
-	return (context->ctx != NULL) ? APR_SUCCESS : APR_EGENERAL;
-}
+// 			/* see if we need to set the database */
+// 			if (context->database != -1) {
+// 						REDIS_SOCKET *sock = redis_get_socket(context->pool);
+// 		reply = redis_command(sock, context->pool, "SELECT %d", context->database);
+
+// 		redis_release_socket(context->pool, sock);
+
+// 				if ((reply == NULL) || (reply->type == REDIS_REPLY_ERROR))
+// 					oidc_error(r,
+// 							"Redis SELECT command (%s:%d) failed: '%s'",
+// 							context->host_str, context->port
+// 							);
+// 				else
+// 					oidc_debug(r,
+// 							"successfully selected database %d on the Redis server: %s",
+// 							context->database, reply ? reply->str : "<n/a>");
+
+// 				/* free the database answer */
+// 				oidc_cache_redis_reply_free(&reply);
+// 			}
+
+// 			// if (redisSetTimeout(context->ctx, context->timeout) != REDIS_OK)
+// 				// oidc_error(r, "redisSetTimeout failed: %s", context->ctx->errstr);
+
+// 		}
+// 	}
+
+// 	return (context->pool != NULL) ? APR_SUCCESS : APR_EGENERAL;
+// }
 
 #define OIDC_REDIS_MAX_TRIES 2
 
@@ -273,15 +321,26 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 
 	/* try to execute a command at max 2 times while reconnecting */
 	for (i = 0; i < OIDC_REDIS_MAX_TRIES; i++) {
-
-		/* connect */
-		if (oidc_cache_redis_connect(r, context) != APR_SUCCESS)
+		REDIS_SOCKET *sock = redis_get_socket(context->pool);
+		if (sock->state == sockunconnected) {
+			oidc_error(r, "redis pool returned an unconnected socket");
 			break;
+		}
+
+		oidc_debug(r, "Acquired redis connection %d", sock->id);
+		/* connect */
+		// if (oidc_cache_redis_connect(r, context) != APR_SUCCESS)
+		// 	break;
 
 		va_start(ap, format);
 		/* execute the actual command */
-		reply = redisvCommand(context->ctx, format, ap);
+
+		reply = redis_vcommand(sock, context->pool, format, ap);
+
 		va_end(ap);
+
+		oidc_debug(r, "Releasing redis connection %d", sock->id);
+		redis_release_socket(context->pool, sock);
 
 		/* check for errors, need to return error replies for cache miss case REDIS_REPLY_NIL */
 		if ((reply != NULL) && (reply->type != REDIS_REPLY_ERROR))
@@ -290,15 +349,15 @@ static redisReply* oidc_cache_redis_command(request_rec *r,
 
 		/* something went wrong, log it */
 		oidc_error(r,
-				"Redis command (attempt=%d to %s:%d) failed, disconnecting: '%s' [%s]",
-				i, context->host_str, context->port, context->ctx->errstr,
+				"Redis command (attempt=%d to %s:%d) failed, disconnecting: [%s]",
+				i, context->host_str, context->port,
 				reply ? reply->str : "<n/a>");
 
 		/* free the reply (if there is one allocated) */
 		oidc_cache_redis_reply_free(&reply);
 
 		/* cleanup, we may try again (once) after reconnecting */
-		oidc_cache_redis_free(context);
+		// oidc_cache_redis_free(context);
 	}
 
 	return reply;
@@ -419,7 +478,7 @@ static int oidc_cache_redis_destroy(server_rec *s) {
 
 	if (context != NULL) {
 		// TODO: why do we need this check...? it is set/checked to null inside of oidc_cache_redis_free, no?
-		if (context->ctx != NULL) {
+		if (context->pool != NULL) {
 			oidc_cache_mutex_lock(s, context->mutex);
 			oidc_cache_redis_free(context);
 			oidc_cache_mutex_unlock(s, context->mutex);

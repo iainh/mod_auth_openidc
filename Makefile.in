@@ -16,7 +16,9 @@ SRC=src/mod_auth_openidc.c \
 
 ifeq (@HAVE_LIBHIREDIS@, 1)
 SRC += \
-	src/cache/redis.c	
+	src/cache/redis.c \
+	src/cache/log.c \
+	src/cache/hiredispool.c
 REDIS_CFLAGS=-DUSE_LIBHIREDIS @HIREDIS_CFLAGS@
 REDIS_LIBS=@HIREDIS_LIBS@
 endif
@@ -38,6 +40,8 @@ HDRS = \
 	src/jose.h \
 	src/parse.h \
 	src/cache/cache.h \
+	src/cache/hiredispool.h \
+	src/cache/log.h \
 	src/pcre_subst.h \
 
 # Files to include when making a .tar.gz-file for distribution
