@@ -12,23 +12,23 @@
 
 #define MAX_REDIS_SOCKS 1000
 
-static int redis_init_socketpool(REDIS_INSTANCE * inst);
-static void redis_poolfree(REDIS_INSTANCE * inst);
-static int connect_single_socket(REDIS_SOCKET *redisocket, REDIS_INSTANCE *inst);
-static int redis_close_socket(REDIS_INSTANCE *inst, REDIS_SOCKET * redisocket);
+static int redis_init_socketpool(redis_instance_t * inst);
+static void redis_poolfree(redis_instance_t * inst);
+static int connect_single_socket(redis_socket_t *redisocket, redis_instance_t *inst);
+static int redis_close_socket(redis_instance_t *inst, redis_socket_t * redisocket);
 
-int redis_pool_create(const REDIS_CONFIG* config, REDIS_INSTANCE** instance)
+int redis_pool_create(const redis_config_t* config, redis_instance_t** instance)
 {
     int i;
     char* host;
     int port;
-    REDIS_INSTANCE *inst;
+    redis_instance_t *inst;
 
-    inst = malloc(sizeof(REDIS_INSTANCE));
-    memset(inst, 0, sizeof(REDIS_INSTANCE));
+    inst = malloc(sizeof(redis_instance_t));
+    memset(inst, 0, sizeof(redis_instance_t));
 
-    inst->config = malloc(sizeof(REDIS_CONFIG));
-    memset(inst->config, 0, sizeof(REDIS_CONFIG));
+    inst->config = malloc(sizeof(redis_config_t));
+    memset(inst->config, 0, sizeof(redis_config_t));
 
     if (config->endpoints == NULL || config->num_endpoints < 1) {
         log_(L_ERROR|L_CONS, "%s: Must provide 1 redis endpoint", __func__);
@@ -37,8 +37,8 @@ int redis_pool_create(const REDIS_CONFIG* config, REDIS_INSTANCE** instance)
     }
 
     /* Assign config */
-    inst->config->endpoints = malloc(sizeof(REDIS_ENDPOINT) * config->num_endpoints);
-    memcpy(inst->config->endpoints, config->endpoints, sizeof(REDIS_ENDPOINT) * config->num_endpoints);
+    inst->config->endpoints = malloc(sizeof(redis_endpoint_t) * config->num_endpoints);
+    memcpy(inst->config->endpoints, config->endpoints, sizeof(redis_endpoint_t) * config->num_endpoints);
     inst->config->num_endpoints = config->num_endpoints;
     inst->config->connect_timeout = config->connect_timeout;
     inst->config->net_readwrite_timeout = config->net_readwrite_timeout;
@@ -88,9 +88,9 @@ int redis_pool_create(const REDIS_CONFIG* config, REDIS_INSTANCE** instance)
     return 0;
 }
 
-int redis_pool_destroy(REDIS_INSTANCE* instance)
+int redis_pool_destroy(redis_instance_t* instance)
 {
-    REDIS_INSTANCE *inst = instance;
+    redis_instance_t *inst = instance;
 
     if (inst == NULL)
         return -1;
@@ -114,11 +114,11 @@ int redis_pool_destroy(REDIS_INSTANCE* instance)
     return 0;
 }
 
-static int redis_init_socketpool(REDIS_INSTANCE * inst)
+static int redis_init_socketpool(redis_instance_t * inst)
 {
     int i, rcode;
     int success = 0;
-    REDIS_SOCKET *redisocket;
+    redis_socket_t *redisocket;
 
     inst->connect_after = 0;
     inst->redis_pool = NULL;
@@ -126,7 +126,7 @@ static int redis_init_socketpool(REDIS_INSTANCE * inst)
     for (i = 0; i < inst->config->num_redis_socks; i++) {
         DEBUG("%s: starting %d", __func__, i);
 
-        redisocket = malloc(sizeof(REDIS_SOCKET));
+        redisocket = malloc(sizeof(redis_socket_t));
         redisocket->conn = NULL;
         redisocket->id = i;
         redisocket->backup = i % inst->config->num_endpoints;
@@ -165,10 +165,10 @@ static int redis_init_socketpool(REDIS_INSTANCE * inst)
     return 0;
 }
 
-static void redis_poolfree(REDIS_INSTANCE * inst)
+static void redis_poolfree(redis_instance_t * inst)
 {
-    REDIS_SOCKET *cur;
-    REDIS_SOCKET *next;
+    redis_socket_t *cur;
+    redis_socket_t *next;
 
     for (cur = inst->redis_pool; cur; cur = next) {
         next = cur->next;
@@ -187,7 +187,7 @@ static void redis_poolfree(REDIS_INSTANCE * inst)
  * successful in connecting, set state to sockconnected.
  * - hh
  */
-static int connect_single_socket(REDIS_SOCKET *redisocket, REDIS_INSTANCE *inst)
+static int connect_single_socket(redis_socket_t *redisocket, redis_instance_t *inst)
 {
     int i;
     redisContext* c;
@@ -273,7 +273,7 @@ static int connect_single_socket(REDIS_SOCKET *redisocket, REDIS_INSTANCE *inst)
     return -1;
 }
 
-static int redis_close_socket(REDIS_INSTANCE *inst, REDIS_SOCKET * redisocket)
+static int redis_close_socket(redis_instance_t *inst, redis_socket_t * redisocket)
 {
     int rcode;
 
@@ -300,9 +300,9 @@ static int redis_close_socket(REDIS_INSTANCE *inst, REDIS_SOCKET * redisocket)
     return 0;
 }
 
-REDIS_SOCKET * redis_get_socket(REDIS_INSTANCE * inst)
+redis_socket_t * redis_get_socket(redis_instance_t * inst)
 {
-    REDIS_SOCKET *cur, *start;
+    redis_socket_t *cur, *start;
     int tried_to_connect = 0;
     int unconnected = 0;
     int rcode, locked;
@@ -437,7 +437,7 @@ REDIS_SOCKET * redis_get_socket(REDIS_INSTANCE * inst)
     return NULL;
 }
 
-int redis_release_socket(REDIS_INSTANCE * inst, REDIS_SOCKET * redisocket)
+int redis_release_socket(redis_instance_t * inst, redis_socket_t * redisocket)
 {
     int rcode;
 
@@ -464,7 +464,7 @@ int redis_release_socket(REDIS_INSTANCE * inst, REDIS_SOCKET * redisocket)
     return 0;
 }
 
-void* redis_command(REDIS_SOCKET* redisocket, REDIS_INSTANCE* inst, const char* format, ...)
+void* redis_command(redis_socket_t* redisocket, redis_instance_t* inst, const char* format, ...)
 {
     va_list ap;
     void *reply;
@@ -474,7 +474,7 @@ void* redis_command(REDIS_SOCKET* redisocket, REDIS_INSTANCE* inst, const char* 
     return reply;
 }
 
-void* redis_vcommand(REDIS_SOCKET* redisocket, REDIS_INSTANCE* inst, const char* format, va_list ap)
+void* redis_vcommand(redis_socket_t* redisocket, redis_instance_t* inst, const char* format, va_list ap)
 {
     va_list ap2;
     void *reply;

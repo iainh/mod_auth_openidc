@@ -13,61 +13,45 @@
 
 #include <stdarg.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-/* Constants */
-#define HIREDISPOOL_MAJOR 0
-#define HIREDISPOOL_MINOR 1
-#define HIREDISPOOL_PATCH 1
-#define HIREDISPOOL_SONAME 0.1
-
-/* Types */
-typedef struct redis_endpoint {
+typedef struct redis_endpoint_t {
     char host[256];
     int port;
-} REDIS_ENDPOINT;
+} redis_endpoint_t;
 
-typedef struct redis_config {
-    REDIS_ENDPOINT* endpoints;
+typedef struct redis_config_t {
+    redis_endpoint_t* endpoints;
     int num_endpoints;
     int connect_timeout;
     int net_readwrite_timeout;
     int num_redis_socks;
     int connect_failure_retry_delay;
-} REDIS_CONFIG;
+} redis_config_t;
 
-typedef struct redis_socket {
+typedef struct redis_socket_t {
     int id;
     int backup;
     pthread_mutex_t mutex;
     int inuse;
-    struct redis_socket* next;
+    struct redis_socket_t* next;
     enum { sockunconnected, sockconnected } state;
     void* conn;
-} REDIS_SOCKET;
+} redis_socket_t;
 
-typedef struct redis_instance {
+typedef struct redis_instance_t {
     time_t connect_after;
-    REDIS_SOCKET* redis_pool;
-    REDIS_SOCKET* last_used;
-    REDIS_CONFIG* config;
-} REDIS_INSTANCE;
+    redis_socket_t* redis_pool;
+    redis_socket_t* last_used;
+    redis_config_t* config;
+} redis_instance_t;
 
 /* Functions */
-int redis_pool_create(const REDIS_CONFIG* config, REDIS_INSTANCE** instance);
-int redis_pool_destroy(REDIS_INSTANCE* instance);
+int redis_pool_create(const redis_config_t* config, redis_instance_t** instance);
+int redis_pool_destroy(redis_instance_t* instance);
 
-REDIS_SOCKET* redis_get_socket(REDIS_INSTANCE* instance);
-int redis_release_socket(REDIS_INSTANCE* instance, REDIS_SOCKET* redisocket);
+redis_socket_t* redis_get_socket(redis_instance_t* instance);
+int redis_release_socket(redis_instance_t* instance, redis_socket_t* redisocket);
 
-void* redis_command(REDIS_SOCKET* redisocket, REDIS_INSTANCE* instance, const char* format, ...);
-void* redis_vcommand(REDIS_SOCKET* redisocket, REDIS_INSTANCE* instance, const char* format, va_list ap);
-
-#ifdef __cplusplus
-}
-#endif
+void* redis_command(redis_socket_t* redisocket, redis_instance_t* instance, const char* format, ...);
+void* redis_vcommand(redis_socket_t* redisocket, redis_instance_t* instance, const char* format, va_list ap);
 
 #endif/*HIREDISPOOL_H*/
